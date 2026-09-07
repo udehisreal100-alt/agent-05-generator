@@ -48,7 +48,7 @@ groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 GROQ_MODELS_FALLBACK_CHAIN = [
     "meta-llama/llama-prompt-guard-2-86m",
     "meta-llama/llama-prompt-guard-2-22m",
-    "qwen/qwen3.8-27b"
+    "qwen/qwen3.8-27b",
     "qwen/qwen3.6-27b"
 ]
 
