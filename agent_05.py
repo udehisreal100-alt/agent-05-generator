@@ -116,7 +116,8 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         
     if response.status_code in (200, 201):
         res_data = response.json()
-        product_url = res_data.get("product", {}).get("short_url", "N/A")
+        product = res_data.get("product", {})
+        product_url = product.get("url") or product.get("short_url") or "N/A"
         print(f"[✔] Gumroad Listing Success! URL: {product_url}")
         return res_data
     else:
