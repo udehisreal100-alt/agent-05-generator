@@ -1,0 +1,36 @@
+# ==========================================
+# Environment & Secrets (CRITICAL)
+# ==========================================
+.env
+.env.*
+*.env
+
+# ==========================================
+# Python & Virtual Environments
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+build/
+dist/
+*.egg-info/
+
+# ==========================================
+# Engine Temporary & Output Artifacts
+# ==========================================
+*.zip
+payload_*.zip
+digital_asset_catalog.json
+
+# ==========================================
+# IDE & Operating System
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
