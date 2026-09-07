@@ -28,20 +28,20 @@ def get_target_topic() -> str:
     return "FastAPI middleware for rate-limiting and Supabase authentication logging"
 
 # ---------------------------------------------------------------------------
-# 3. Groq Generation Module (qwen/qwen3.8-27b)
+# 3. Groq Generation Module (qwen/qwen3.8-27b with token limit fixes)
 # ---------------------------------------------------------------------------
 SYSTEM_INSTRUCTION = """
 You are an expert software engineer and digital product creator.
-Generate a complete, fully functional, production-ready Python script for the user topic.
-Ensure robust error handling, inline comments, clean structure, and a comprehensive README.md.
+Generate a complete, production-ready Python script and README for the target topic.
+Keep the code, docs, and sales copy concise and direct so the entire JSON stays under 900 output tokens.
 
 You MUST return your response as a single, valid JSON object matching this exact schema:
 {
-  "filename": "script_name.py",
+  "filename": "middleware.py",
   "code": "FULL_PYTHON_CODE_HERE",
-  "readme": "FULL_README_MARKDOWN_HERE",
+  "readme": "CONCISE_README_MARKDOWN_HERE",
   "product_title": "PUNCHY_GUMROAD_PRODUCT_TITLE",
-  "product_description": "ATTRACTIVE_GUMROAD_SALES_COPY_MARKDOWN",
+  "product_description": "SHORT_GUMROAD_SALES_COPY_MARKDOWN",
   "price_usd": 9
 }
 
@@ -52,7 +52,7 @@ CRITICAL JSON ESCAPING RULES:
 """
 
 def generate_digital_asset_with_groq(topic: str) -> dict:
-    """Queries Groq API using qwen/qwen3.8-27b and parses the JSON asset cleanly."""
+    """Queries Groq API using qwen/qwen3.8-27b with explicit max_tokens (950) to fit 1k OTPM limit."""
     if not groq_client:
         raise ValueError("Groq client not initialized. Check GROQ_API_KEY.")
         
@@ -64,7 +64,8 @@ def generate_digital_asset_with_groq(topic: str) -> dict:
             {"role": "system", "content": SYSTEM_INSTRUCTION},
             {"role": "user", "content": f"Generate a complete digital asset for topic: {topic}"}
         ],
-        temperature=0.1
+        temperature=0.1,
+        max_tokens=950  # Enforces response size below Groq's 1000 OTPM rate limit cap
     )
     
     raw_content = response.choices[0].message.content.strip()
@@ -135,7 +136,7 @@ def run_agent_pipeline():
     
     asset_data = generate_digital_asset_with_groq(topic)
     
-    filename = asset_data.get("filename", "main.py")
+    filename = asset_data.get("filename", "middleware.py")
     code = asset_data.get("code", "")
     readme = asset_data.get("readme", "")
     title = asset_data.get("product_title", "Automated Digital Asset")
