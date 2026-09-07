@@ -19,12 +19,7 @@ build/
 dist/
 *.egg-info/
 
-# ==========================================
-# Engine Temporary & Output Artifacts
-# ==========================================
-*.zip
-payload_*.zip
-digital_asset_catalog.json
+
 
 # ==========================================
 # IDE & Operating System
