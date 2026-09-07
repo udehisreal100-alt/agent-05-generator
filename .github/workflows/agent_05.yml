@@ -2,7 +2,7 @@ name: Agent 05 - Digital Asset Generator
 
 on:
   schedule:
-    - cron: '0 9 */3 * *' # Runs every 3 days at 09:00 UTC
+    - cron: '0 6 * * *' # Runs everyday at 06:00 AM UTC
   workflow_dispatch: # Allows manual trigger button
 
 jobs:
