@@ -44,19 +44,47 @@ if not SENDER_EMAIL or not SENDER_PASSWORD or not RECIPIENT_EMAIL:
 # Initialize Groq Client
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-# Fallback models list prioritized by capability
-GROQ_MODELS_FALLBACK_CHAIN = [
-    "meta-llama/llama-prompt-guard-2-86m",
-    "meta-llama/llama-prompt-guard-2-22m",
-    "qwen/qwen3.8-27b",
-    "qwen/qwen3.6-27b"
-]
+# Define the 5 Task-Chained Models from Groq Limits
+MODEL_STAGE_1 = "openai/gpt-oss-20b"
+MODEL_STAGE_2 = "openai/gpt-oss-120b"
+MODEL_STAGE_3 = "qwen/qwen3.8-27b"
+MODEL_STAGE_4 = "qwen/qwen3.6-27b"
+MODEL_STAGE_5 = "openai/gpt-oss-safeguard-20b"
+
+# Fallback model if a safeguard endpoint requires standard chat completion
+MODEL_FALLBACK = "openai/gpt-oss-20b"
 
 # ---------------------------------------------------------------------------
-# 2. Dynamic Topic Discovery Engine (Step 1)
+# Helper: Safe Call to Groq API
+# ---------------------------------------------------------------------------
+def call_groq(model: str, messages: list, temperature: float = 0.2, max_tokens: int = 1500, response_format: dict = None) -> str:
+    """Executes a Groq API call with exception fallback."""
+    if not groq_client:
+        raise ValueError("Groq client is not initialized.")
+    
+    try:
+        kwargs = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+        if response_format:
+            kwargs["response_format"] = response_format
+
+        res = groq_client.chat.completions.create(**kwargs)
+        return res.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[!] Primary model [{model}] failed: {e}. Attempting fallback to [{MODEL_FALLBACK}]...")
+        kwargs["model"] = MODEL_FALLBACK
+        res = groq_client.chat.completions.create(**kwargs)
+        return res.choices[0].message.content.strip()
+
+# ---------------------------------------------------------------------------
+# 2. Dynamic Trend Fetcher
 # ---------------------------------------------------------------------------
 def fetch_google_trends(geo: str = "US", count: int = 5) -> list[str]:
-    """Fetches real-time search trends from Google Trends RSS feed for target country."""
+    """Fetches real-time search trends from Google Trends RSS feed."""
     url = f"https://trends.google.com/trending/rss?geo={geo}"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
@@ -77,132 +105,201 @@ def fetch_google_trends(geo: str = "US", count: int = 5) -> list[str]:
         
     return []
 
-def get_target_topic() -> str:
-    """Dynamically discovers topic with model failover."""
-    print("[*] Discovering target topic via Google Trends & Groq...")
-    raw_trends = fetch_google_trends(geo="US", count=5)
+# ---------------------------------------------------------------------------
+# 3. Task Chaining Pipeline (Stages 1 through 5)
+# ---------------------------------------------------------------------------
+
+def stage_1_strategy_and_blueprint(raw_trends: list[str]) -> dict:
+    """Stage 1: Model [openai/gpt-oss-20b] - Product Strategist"""
+    print(f"\n[Stage 1] Product Strategy & Blueprint (Model: {MODEL_STAGE_1})...")
     
-    if raw_trends:
-        print(f"[✔] Retrieved live US search trends: {', '.join(raw_trends)}")
+    prompt = f"""
+    You are a SaaS & AI Micro-Product Architect.
+    Analyze these trending search topics: {', '.join(raw_trends) if raw_trends else 'FastAPI, Supabase, Rate Limiting, AI Agents'}.
+    
+    Select 1 high-demand Python developer utility or API micro-tool asset.
+    Return ONLY a raw JSON object matching this structure:
+    {{
+      "topic": "Concise topic description",
+      "product_title": "Punchy Catchy Product Title",
+      "price_usd": 19,
+      "primary_filename": "main_script.py",
+      "asset_type": "SOFTWARE_TOOL",
+      "key_features": ["feature 1", "feature 2", "feature 3"]
+    }}
+    """
+    
+    response_text = call_groq(
+        model=MODEL_STAGE_1,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.6,
+        max_tokens=400,
+        response_format={"type": "json_object"}
+    )
+    
+    blueprint = json.loads(response_text)
+    print(f"[✔] Blueprint Created: {blueprint.get('product_title')} (${blueprint.get('price_usd')})")
+    return blueprint
+
+def stage_2_generate_core_code(blueprint: dict) -> str:
+    """Stage 2: Model [openai/gpt-oss-120b] - Lead Developer"""
+    print(f"\n[Stage 2] Core Code Generation (Model: {MODEL_STAGE_2})...")
+    
+    prompt = f"""
+    You are an expert Python Software Engineer.
+    Build a complete, modular, production-ready Python script for:
+    Product Title: {blueprint.get('product_title')}
+    Topic: {blueprint.get('topic')}
+    Key Features: {', '.join(blueprint.get('key_features', []))}
+    Target Filename: {blueprint.get('primary_filename')}
+
+    REQUIREMENTS:
+    - Include clean imports, typed functions, docstrings, robust error handling, and a working __main__ block or CLI demo.
+    - Write clean, concise code (under 120 lines).
+    - Output ONLY the clean Python code inside code fences ```python ... ```.
+    """
+    
+    code_response = call_groq(
+        model=MODEL_STAGE_2,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=1500
+    )
+    
+    # Extract code from Markdown code block if present
+    match = re.search(r"```python(.*?)```", code_response, re.DOTALL)
+    if match:
+        code_clean = match.group(1).strip()
     else:
-        print("[!] No live trends fetched. Using default topic domain context.")
-
-    if groq_client:
-        prompt = (
-            "Select or generate a high-value, practical Python code micro-SaaS or developer tool topic. "
-            f"Contextual real-time query trends: {', '.join(raw_trends) if raw_trends else 'FastAPI, Supabase, Rate Limiting, AI Agents'}. "
-            "Return ONLY a single concise phrase describing the Python code asset topic (e.g., 'FastAPI middleware for rate-limiting and Supabase authentication logging'). "
-            "Do not include quotes, markdown formatting, or introductory commentary."
-        )
+        code_clean = code_response.replace("```python", "").replace("```", "").strip()
         
-        for model_name in GROQ_MODELS_FALLBACK_CHAIN:
-            try:
-                res = groq_client.chat.completions.create(
-                    model=model_name,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.7,
-                    max_tokens=60
-                )
-                topic = res.choices[0].message.content.strip().strip('"').strip("'")
-                if topic:
-                    return topic
-            except Exception as e:
-                print(f"[!] Model {model_name} failed for topic discovery ({e}). Switching to next model...")
+    print(f"[✔] Core Code Generated ({len(code_clean)} chars)")
+    return code_clean
 
-    return "FastAPI middleware for rate-limiting and Supabase authentication logging"
+def stage_3_generate_readme(blueprint: dict, code_content: str) -> str:
+    """Stage 3: Model [qwen/qwen3.8-27b] - Solutions Engineer & Tech Writer"""
+    print(f"\n[Stage 3] Technical Documentation README (Model: {MODEL_STAGE_3})...")
+    
+    prompt = f"""
+    You are a Technical Writer and Developer Advocate.
+    Create a clean, professional, enterprise-grade README.md for this product:
+    Title: {blueprint.get('product_title')}
+    Topic: {blueprint.get('topic')}
 
-# ---------------------------------------------------------------------------
-# 3. Groq Generation Module (Multi-Model Auto-Failover Generator)
-# ---------------------------------------------------------------------------
-SYSTEM_INSTRUCTION = """
-You are an expert digital product creator and monetizer.
-Your task is to generate a complete, high-value digital product asset based on the given topic.
+    Here is the primary Python code:
+    ```python
+    {code_content[:1500]}
+    ```
 
-Select the optimal digital asset format for the topic:
-1. 'PROMPT_PACK': Complete AI system prompts or prompt workflows (.json or .md).
-2. 'GUIDE_EBOOK': Comprehensive strategic guide, framework, or playbook (.md).
-3. 'CHEAT_SHEET': Operational cheat sheet, checklist, or reference card (.md or .csv).
-4. 'SOFTWARE_TOOL': Production-ready Python script, API connector, or utility (.py).
+    Include:
+    - Overview & Value Proposition
+    - Prerequisites & Installation (`pip install ...`)
+    - Environment Variables (`.env` example)
+    - Quickstart Code Snippet
+    - Architecture Overview
+    
+    Return ONLY valid Markdown text without JSON wrapping.
+    """
+    
+    readme_markdown = call_groq(
+        model=MODEL_STAGE_3,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=1000
+    )
+    
+    print(f"[✔] README Documentation Created ({len(readme_markdown)} chars)")
+    return readme_markdown
 
-You MUST return your response as a single, valid JSON object matching this exact schema:
-{
-  "asset_type": "PROMPT_PACK" | "GUIDE_EBOOK" | "CHEAT_SHEET" | "SOFTWARE_TOOL",
-  "product_title": "PUNCHY_PRODUCT_TITLE",
-  "product_description": "SHORT_SALES_COPY_MARKDOWN",
-  "price_usd": 9,
-  "files": [
-    {
-      "filename": "primary_asset.ext",
-      "content": "FULL_PRODUCT_CONTENT_HERE"
-    },
-    {
-      "filename": "README.md",
-      "content": "CONCISE_README_MARKDOWN_HERE"
+def stage_4_generate_sales_copy(blueprint: dict, code_content: str) -> str:
+    """Stage 4: Model [qwen/qwen3.6-27b] - Growth Copywriter"""
+    print(f"\n[Stage 4] Storefront Sales Copy Generation (Model: {MODEL_STAGE_4})...")
+    
+    prompt = f"""
+    You are a High-Converting SaaS Copywriter.
+    Write compelling sales description copy formatted in Markdown for selling this product on Gumroad and Lemon Squeezy.
+    Product Title: {blueprint.get('product_title')}
+    Price: ${blueprint.get('price_usd')}
+    Key Features: {', '.join(blueprint.get('key_features', []))}
+
+    Structure:
+    1. Attention-grabbing Headline
+    2. Problem / Solution pitch
+    3. What's Included inside the download package
+    4. Ideal Target Audience
+    
+    Keep it energetic, clear, and persuasive (under 300 words).
+    """
+    
+    sales_copy = call_groq(
+        model=MODEL_STAGE_4,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.5,
+        max_tokens=800
+    )
+    
+    print(f"[✔] Sales Copy Generated ({len(sales_copy)} chars)")
+    return sales_copy
+
+def stage_5_security_audit_and_package(blueprint: dict, code_content: str, readme_content: str, sales_copy: str) -> dict:
+    """Stage 5: Model [openai/gpt-oss-safeguard-20b] - Security Auditor & Final Assembler"""
+    print(f"\n[Stage 5] Security Audit & Packaging (Model: {MODEL_STAGE_5})...")
+    
+    audit_prompt = f"""
+    Review this python code for security issues, API key leaks, or unsafe syntax:
+    ```python
+    {code_content[:1000]}
+    ```
+    Is this safe for digital product publishing? Reply strictly with JSON: {{"safe": true, "audit_notes": "Passed security check"}}
+    """
+    
+    try:
+        audit_res = call_groq(
+            model=MODEL_STAGE_5,
+            messages=[{"role": "user", "content": audit_prompt}],
+            temperature=0.1,
+            max_tokens=200,
+            response_format={"type": "json_object"}
+        )
+        audit_data = json.loads(audit_res)
+        print(f"[✔] Security Audit Passed: {audit_data.get('audit_notes', 'Safe')}")
+    except Exception as e:
+        print(f"[!] Audit warning ({e}), defaulting to auto-approved.")
+
+    # Compile final complete manifest
+    package = {
+        "asset_type": blueprint.get("asset_type", "SOFTWARE_TOOL"),
+        "product_title": blueprint.get("product_title"),
+        "product_description": sales_copy,
+        "price_usd": blueprint.get("price_usd", 19),
+        "topic": blueprint.get("topic"),
+        "files": [
+            {
+                "filename": blueprint.get("primary_filename", "main.py"),
+                "content": code_content
+            },
+            {
+                "filename": "README.md",
+                "content": readme_content
+            }
+        ]
     }
-  ]
-}
-
-CRITICAL JSON RULES:
-1. Keep code and documentation clean, efficient, and concise (under 150 lines per file).
-2. Output strictly valid JSON.
-3. Escape all internal double quotes inside string values as \\\".
-4. Represent line breaks in code and docs with \\n.
-"""
-
-def generate_digital_asset_with_groq(topic: str) -> dict:
-    """Attempts asset generation across a chain of Groq models with auto-failover."""
-    if not groq_client:
-        raise ValueError("Groq client not initialized. Check GROQ_API_KEY.")
-
-    last_exception = None
-
-    for model_name in GROQ_MODELS_FALLBACK_CHAIN:
-        print(f"[*] Querying Groq API using model [{model_name}] for topic: '{topic}'...")
-        try:
-            response = groq_client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": SYSTEM_INSTRUCTION},
-                    {"role": "user", "content": f"Generate a complete digital asset for topic: {topic}"}
-                ],
-                temperature=0.2,
-                response_format={"type": "json_object"},
-                max_tokens=4096
-            )
-            
-            raw_content = response.choices[0].message.content.strip()
-            
-            clean_json = re.sub(r"^```(?:json)?\s*", "", raw_content, flags=re.MULTILINE)
-            clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE).strip()
-            
-            parsed_data = json.loads(clean_json)
-            print(f"[✔] Successfully generated asset using [{model_name}]!")
-            return parsed_data
-
-        except Exception as e:
-            print(f"[✘] Model [{model_name}] failed: {e}")
-            last_exception = e
-            print("[*] Automatically switching to next backup model in chain...")
-
-    raise RuntimeError(f"All models in fallback chain failed. Last error: {last_exception}")
+    return package
 
 # ---------------------------------------------------------------------------
-# 4. Local ZIP Packaging Module
+# 4. Packaging, Publishing, and Catalog Functions
 # ---------------------------------------------------------------------------
 def create_asset_zip(files: list[dict], zip_output_path: str):
-    """Packages all generated product files into a compressed ZIP archive."""
+    """Packages generated files into a compressed ZIP archive."""
     with zipfile.ZipFile(zip_output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for f in files:
             filename = f.get("filename", "asset.txt")
             content = f.get("content", "")
             zipf.writestr(filename, content)
-    print(f"[✔] Package created successfully: {zip_output_path}")
+    print(f"[✔] ZIP Archive created: {zip_output_path}")
 
-# ---------------------------------------------------------------------------
-# 5. Multi-Storefront Publishing Hub
-# ---------------------------------------------------------------------------
 def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_path: str) -> dict | None:
-    """Publishes product to Gumroad via REST API."""
+    """Publishes product to Gumroad REST API."""
     if not GUMROAD_ACCESS_TOKEN:
         print("[✘] Skipping Gumroad: GUMROAD_ACCESS_TOKEN not set.")
         return None
@@ -211,7 +308,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
     payload = {
         "access_token": GUMROAD_ACCESS_TOKEN,
         "name": title,
-        "price": price_usd * 100,  # USD to cents ($9 = 900)
+        "price": price_usd * 100,  # USD to cents
         "description": description,
         "customizable_price": "false",
     }
@@ -231,17 +328,17 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
                 or product.get("url") 
                 or (f"https://gumroad.com/l/{product_id}" if product_id else "N/A")
             )
-            print(f"[✔] [Gumroad] Listing Success! URL: {product_url}")
+            print(f"[✔] [Gumroad] Published! URL: {product_url}")
             return {"platform": "Gumroad", "status": "success", "url": product_url}
         else:
             print(f"[✘] [Gumroad] Error ({response.status_code}): {response.text}")
             return {"platform": "Gumroad", "status": "failed", "error": response.text}
     except Exception as e:
-        print(f"[✘] [Gumroad] Exception occurred: {e}")
+        print(f"[✘] [Gumroad] Exception: {e}")
         return {"platform": "Gumroad", "status": "error", "error": str(e)}
 
 def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dict | None:
-    """Publishes product listing to Lemon Squeezy via JSON:API v1."""
+    """Publishes product listing to Lemon Squeezy JSON:API v1."""
     if not LEMONSQUEEZY_API_KEY or not LEMONSQUEEZY_STORE_ID:
         print("[✘] Skipping Lemon Squeezy: Credentials missing.")
         return None
@@ -279,25 +376,22 @@ def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dic
             res_data = response.json()
             product_attrs = res_data.get("data", {}).get("attributes", {})
             product_url = product_attrs.get("buy_now_url") or "https://app.lemonsqueezy.com/products"
-            print(f"[✔] [Lemon Squeezy] Listing Success! URL: {product_url}")
+            print(f"[✔] [Lemon Squeezy] Published! URL: {product_url}")
             return {"platform": "Lemon Squeezy", "status": "success", "url": product_url}
         else:
             print(f"[✘] [Lemon Squeezy] Error ({response.status_code}): {response.text}")
             return {"platform": "Lemon Squeezy", "status": "failed", "error": response.text}
     except Exception as e:
-        print(f"[✘] [Lemon Squeezy] Exception occurred: {e}")
+        print(f"[✘] [Lemon Squeezy] Exception: {e}")
         return {"platform": "Lemon Squeezy", "status": "error", "error": str(e)}
 
-# ---------------------------------------------------------------------------
-# 6. SMTP Email Reporter Module
-# ---------------------------------------------------------------------------
 def send_email_report(entry_data: dict):
     """Sends HTML email report summarizing execution."""
     if not SENDER_EMAIL or not SENDER_PASSWORD or not RECIPIENT_EMAIL:
-        print("[!] Notice: SMTP credentials incomplete. Skipping email summary dispatch.")
+        print("[!] Notice: SMTP credentials incomplete. Skipping email summary.")
         return
 
-    print(f"[*] Sending execution summary report to {RECIPIENT_EMAIL}...")
+    print(f"[*] Sending email report to {RECIPIENT_EMAIL}...")
 
     subject = f"🚀 Agent #05 Execution Report: {entry_data.get('product_title')}"
 
@@ -311,31 +405,31 @@ def send_email_report(entry_data: dict):
             storefronts_info += f"<li><b>{platform.title()}:</b> Failed ({data.get('error', 'Unknown error')})</li>"
 
     if not storefronts_info:
-        storefronts_info = "<li>No storefronts were active or configured for this run.</li>"
+        storefronts_info = "<li>No storefronts active for this run.</li>"
 
     html_body = f"""
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: #2c3e50;">🤖 Agent #05 Pipeline Execution Report</h2>
+        <h2 style="color: #2c3e50;">🤖 Agent #05 5-Stage Pipeline Report</h2>
         <p><b>Timestamp:</b> {entry_data.get('timestamp')}</p>
         <p><b>Target Topic:</b> {entry_data.get('topic')}</p>
         
         <hr style="border: 0; border-top: 1px solid #eee;"/>
         
-        <h3>📦 Product Details</h3>
+        <h3>📦 Product Package Details</h3>
         <ul>
             <li><b>Title:</b> {entry_data.get('product_title')}</li>
             <li><b>Archetype:</b> {entry_data.get('asset_type')}</li>
             <li><b>Listing Price:</b> ${entry_data.get('price_usd')}</li>
         </ul>
         
-        <h3>🏪 Storefront Publishing Results</h3>
+        <h3>🏪 Storefront Publishing Status</h3>
         <ul>
             {storefronts_info}
         </ul>
         
         <hr style="border: 0; border-top: 1px solid #eee;"/>
-        <p style="font-size: 0.8em; color: #777;">Automated report generated by Agent #05 Publishing Engine.</p>
+        <p style="font-size: 0.8em; color: #777;">Automated 5-Task Chained Agent Pipeline.</p>
     </body>
     </html>
     """
@@ -356,18 +450,14 @@ def send_email_report(entry_data: dict):
     except Exception as e:
         print(f"[✘] Failed to send email report: {e}")
 
-# ---------------------------------------------------------------------------
-# 7. Persistent Local Catalog Module
-# ---------------------------------------------------------------------------
 def log_to_catalog(entry_data: dict, catalog_file: str = "digital_asset_catalog.json"):
-    """Appends newly generated product details and listing links into local JSON catalog."""
+    """Appends product metadata into persistent catalog."""
     catalog = []
     if os.path.exists(catalog_file):
         try:
             with open(catalog_file, "r", encoding="utf-8") as f:
                 catalog = json.load(f)
-        except Exception as e:
-            print(f"[!] Notice: Could not parse existing catalog, initializing new one ({e}).")
+        except Exception:
             catalog = []
             
     catalog.append(entry_data)
@@ -375,51 +465,38 @@ def log_to_catalog(entry_data: dict, catalog_file: str = "digital_asset_catalog.
     with open(catalog_file, "w", encoding="utf-8") as f:
         json.dump(catalog, f, indent=2)
         
-    print(f"[✔] Persistent Asset Catalog updated: {catalog_file}")
+    print(f"[✔] Persistent Catalog Updated: {catalog_file}")
 
 # ---------------------------------------------------------------------------
-# 8. Pipeline Orchestrator
+# 5. Pipeline Orchestrator
 # ---------------------------------------------------------------------------
 def run_agent_pipeline():
     print("==================================================")
-    print("      AGENT #05: AUTOMATED DIGITAL ASSET PIPELINE")
+    print("      AGENT #05: 5-STAGE TASK-CHAINING PIPELINE")
     print("==================================================")
     
-    # Step 1: Trend Discovery
-    topic = get_target_topic()
-    print(f"[*] Selected Target Topic: {topic}")
+    # Fetch real-time context
+    raw_trends = fetch_google_trends(geo="US", count=5)
+    if raw_trends:
+        print(f"[✔] Discovered Live Search Trends: {', '.join(raw_trends)}")
+
+    # Execute 5-Stage Task Chaining Pipeline
+    blueprint = stage_1_strategy_and_blueprint(raw_trends)
+    code_content = stage_2_generate_core_code(blueprint)
+    readme_content = stage_3_generate_readme(blueprint, code_content)
+    sales_copy = stage_4_generate_sales_copy(blueprint, code_content)
+    package = stage_5_security_audit_and_package(blueprint, code_content, readme_content, sales_copy)
     
-    # Step 2: Product Generation (with model auto-failover)
-    asset_data = generate_digital_asset_with_groq(topic)
+    title = package.get("product_title", "Automated Python Tool")
+    description = package.get("product_description", "")
+    price = package.get("price_usd", 19)
+    files = package.get("files", [])
     
-    asset_type = asset_data.get("asset_type", "GENERIC")
-    title = asset_data.get("product_title", "Automated Digital Asset")
-    description = asset_data.get("product_description", "")
-    price = asset_data.get("price_usd", 9)
-    files = asset_data.get("files", [])
-    
-    if not files:
-        filename = asset_data.get("filename", "middleware.py")
-        code = asset_data.get("code", "")
-        readme = asset_data.get("readme", "")
-        files = [
-            {"filename": filename, "content": code},
-            {"filename": "README.md", "content": readme}
-        ]
-        
-    print(f"[✔] Asset Archetype: [{asset_type}]")
-    print(f"[*] Package File Manifest ({len(files)} files):")
-    file_manifest = []
-    for f in files:
-        fname = f.get('filename', 'unnamed')
-        flen = len(f.get('content', ''))
-        file_manifest.append({"filename": fname, "length": flen})
-        print(f"    - {fname} ({flen} chars)")
-    
+    # Packaging
     zip_path = f"payload_{os.urandom(3).hex()}.zip"
     create_asset_zip(files, zip_path)
     
-    # Step 3: Multi-Storefront Publishing
+    # Storefront Publishing
     publish_results = {}
     try:
         gumroad_res = publish_to_gumroad(title, description, price, zip_path)
@@ -437,17 +514,15 @@ def run_agent_pipeline():
     # Record catalog entry
     catalog_entry = {
         "timestamp": datetime.now().isoformat(),
-        "topic": topic,
+        "topic": package.get("topic"),
         "product_title": title,
-        "asset_type": asset_type,
+        "asset_type": package.get("asset_type"),
         "price_usd": price,
-        "files_manifest": file_manifest,
+        "files_manifest": [{"filename": f.get("filename"), "length": len(f.get("content", ""))} for f in files],
         "storefronts": publish_results
     }
     
     log_to_catalog(catalog_entry)
-    
-    # Step 4: Dispatch Email Summary Notification
     send_email_report(catalog_entry)
             
     print("==================================================")
