@@ -22,7 +22,7 @@ GUMROAD_ACCESS_TOKEN = os.environ.get("GUMROAD_ACCESS_TOKEN")
 LEMONSQUEEZY_API_KEY = os.environ.get("LEMONSQUEEZY_API_KEY")
 LEMONSQUEEZY_STORE_ID = os.environ.get("LEMONSQUEEZY_STORE_ID")
 
-# SMTP Email Credentials (Step 4)
+# SMTP Email Credentials
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = os.environ.get("SMTP_PORT", "587")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
@@ -44,11 +44,18 @@ if not SENDER_EMAIL or not SENDER_PASSWORD or not RECIPIENT_EMAIL:
 # Initialize Groq Client
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
+# Fallback models list prioritized by capability
+GROQ_MODELS_FALLBACK_CHAIN = [
+    "qwen/qwen3.8-27b",
+    "qwen/qwen3.6-27b",
+    "openai/gpt-oss-safeguard-20b"
+]
+
 # ---------------------------------------------------------------------------
 # 2. Dynamic Topic Discovery Engine (Step 1)
 # ---------------------------------------------------------------------------
 def fetch_google_trends(geo: str = "US", count: int = 5) -> list[str]:
-    """Fetches real-time search trends from Google Trends RSS feed."""
+    """Fetches real-time search trends from Google Trends RSS feed for target country."""
     url = f"https://trends.google.com/trending/rss?geo={geo}"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
@@ -70,15 +77,12 @@ def fetch_google_trends(geo: str = "US", count: int = 5) -> list[str]:
     return []
 
 def get_target_topic() -> str:
-    """
-    Dynamically discovers and synthesizes a high-demand digital asset topic.
-    Combines live Google Trends with Groq LLM synthesis, falling back gracefully if offline.
-    """
+    """Dynamically discovers topic with model failover."""
     print("[*] Discovering target topic via Google Trends & Groq...")
     raw_trends = fetch_google_trends(geo="US", count=5)
     
     if raw_trends:
-        print(f"[✔] Retrieved live search trends: {', '.join(raw_trends)}")
+        print(f"[✔] Retrieved live US search trends: {', '.join(raw_trends)}")
     else:
         print("[!] No live trends fetched. Using default topic domain context.")
 
@@ -89,23 +93,25 @@ def get_target_topic() -> str:
             "Return ONLY a single concise phrase describing the Python code asset topic (e.g., 'FastAPI middleware for rate-limiting and Supabase authentication logging'). "
             "Do not include quotes, markdown formatting, or introductory commentary."
         )
-        try:
-            res = groq_client.chat.completions.create(
-                model="qwen/qwen3.8-27b",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=60
-            )
-            topic = res.choices[0].message.content.strip().strip('"').strip("'")
-            if topic:
-                return topic
-        except Exception as e:
-            print(f"[!] Groq topic selection error: {e}. Falling back to default.")
+        
+        for model_name in GROQ_MODELS_FALLBACK_CHAIN:
+            try:
+                res = groq_client.chat.completions.create(
+                    model=model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7,
+                    max_tokens=60
+                )
+                topic = res.choices[0].message.content.strip().strip('"').strip("'")
+                if topic:
+                    return topic
+            except Exception as e:
+                print(f"[!] Model {model_name} failed for topic discovery ({e}). Switching to next model...")
 
     return "FastAPI middleware for rate-limiting and Supabase authentication logging"
 
 # ---------------------------------------------------------------------------
-# 3. Groq Generation Module (Step 2: Universal Multi-Format Asset Generator)
+# 3. Groq Generation Module (Multi-Model Auto-Failover Generator)
 # ---------------------------------------------------------------------------
 SYSTEM_INSTRUCTION = """
 You are an expert digital product creator and monetizer.
@@ -135,41 +141,49 @@ You MUST return your response as a single, valid JSON object matching this exact
   ]
 }
 
-CRITICAL JSON ESCAPING RULES:
-1. Output strictly valid JSON.
-2. Escape all internal double quotes inside string values as \\\".
-3. Represent line breaks in code and docs with \\n.
+CRITICAL JSON RULES:
+1. Keep code and documentation clean, efficient, and concise (under 150 lines per file).
+2. Output strictly valid JSON.
+3. Escape all internal double quotes inside string values as \\\".
+4. Represent line breaks in code and docs with \\n.
 """
 
 def generate_digital_asset_with_groq(topic: str) -> dict:
-    """Queries Groq API using qwen/qwen3.8-27b to generate multi-format universal digital assets."""
+    """Attempts asset generation across a chain of Groq models with auto-failover."""
     if not groq_client:
         raise ValueError("Groq client not initialized. Check GROQ_API_KEY.")
-        
-    print(f"[*] Querying Groq API for topic: '{topic}'...")
-    
-    response = groq_client.chat.completions.create(
-        model="qwen/qwen3.8-27b",
-        messages=[
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
-            {"role": "user", "content": f"Generate a complete digital asset for topic: {topic}"}
-        ],
-        temperature=0.2,
-        response_format={"type": "json_object"},
-        max_tokens=2500
-    )
-    
-    raw_content = response.choices[0].message.content.strip()
-    
-    clean_json = re.sub(r"^```(?:json)?\s*", "", raw_content, flags=re.MULTILINE)
-    clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE).strip()
-    
-    try:
-        return json.loads(clean_json)
-    except json.JSONDecodeError as e:
-        print(f"[!] JSON decoding error: {e}")
-        print(f"Raw Output Snippet:\n{raw_content[:300]}...")
-        raise e
+
+    last_exception = None
+
+    for model_name in GROQ_MODELS_FALLBACK_CHAIN:
+        print(f"[*] Querying Groq API using model [{model_name}] for topic: '{topic}'...")
+        try:
+            response = groq_client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": SYSTEM_INSTRUCTION},
+                    {"role": "user", "content": f"Generate a complete digital asset for topic: {topic}"}
+                ],
+                temperature=0.2,
+                response_format={"type": "json_object"},
+                max_tokens=4096
+            )
+            
+            raw_content = response.choices[0].message.content.strip()
+            
+            clean_json = re.sub(r"^```(?:json)?\s*", "", raw_content, flags=re.MULTILINE)
+            clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE).strip()
+            
+            parsed_data = json.loads(clean_json)
+            print(f"[✔] Successfully generated asset using [{model_name}]!")
+            return parsed_data
+
+        except Exception as e:
+            print(f"[✘] Model [{model_name}] failed: {e}")
+            last_exception = e
+            print("[*] Automatically switching to next backup model in chain...")
+
+    raise RuntimeError(f"All models in fallback chain failed. Last error: {last_exception}")
 
 # ---------------------------------------------------------------------------
 # 4. Local ZIP Packaging Module
@@ -184,10 +198,10 @@ def create_asset_zip(files: list[dict], zip_output_path: str):
     print(f"[✔] Package created successfully: {zip_output_path}")
 
 # ---------------------------------------------------------------------------
-# 5. Multi-Storefront Publishing Hub (Step 3)
+# 5. Multi-Storefront Publishing Hub
 # ---------------------------------------------------------------------------
 def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_path: str) -> dict | None:
-    """Publishes the generated product and uploads the ZIP payload to Gumroad via REST API."""
+    """Publishes product to Gumroad via REST API."""
     if not GUMROAD_ACCESS_TOKEN:
         print("[✘] Skipping Gumroad: GUMROAD_ACCESS_TOKEN not set.")
         return None
@@ -210,7 +224,6 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         if response.status_code in (200, 201):
             res_data = response.json()
             product = res_data.get("product", {})
-            
             product_id = product.get("id")
             product_url = (
                 product.get("short_url") 
@@ -227,7 +240,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         return {"platform": "Gumroad", "status": "error", "error": str(e)}
 
 def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dict | None:
-    """Publishes the generated product listing to Lemon Squeezy via JSON:API v1."""
+    """Publishes product listing to Lemon Squeezy via JSON:API v1."""
     if not LEMONSQUEEZY_API_KEY or not LEMONSQUEEZY_STORE_ID:
         print("[✘] Skipping Lemon Squeezy: Credentials missing.")
         return None
@@ -245,7 +258,7 @@ def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dic
             "attributes": {
                 "name": title,
                 "description": description,
-                "price": price_usd * 100,  # USD to cents ($9 = 900)
+                "price": price_usd * 100,
             },
             "relationships": {
                 "store": {
@@ -275,10 +288,10 @@ def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dic
         return {"platform": "Lemon Squeezy", "status": "error", "error": str(e)}
 
 # ---------------------------------------------------------------------------
-# 6. SMTP Email Reporter Module (Step 4)
+# 6. SMTP Email Reporter Module
 # ---------------------------------------------------------------------------
 def send_email_report(entry_data: dict):
-    """Sends an automated HTML email report summarizing the agent's execution run."""
+    """Sends HTML email report summarizing execution."""
     if not SENDER_EMAIL or not SENDER_PASSWORD or not RECIPIENT_EMAIL:
         print("[!] Notice: SMTP credentials incomplete. Skipping email summary dispatch.")
         return
@@ -346,7 +359,7 @@ def send_email_report(entry_data: dict):
 # 7. Persistent Local Catalog Module
 # ---------------------------------------------------------------------------
 def log_to_catalog(entry_data: dict, catalog_file: str = "digital_asset_catalog.json"):
-    """Appends newly generated product details and listing links into a persistent local JSON database."""
+    """Appends newly generated product details and listing links into local JSON catalog."""
     catalog = []
     if os.path.exists(catalog_file):
         try:
@@ -375,7 +388,7 @@ def run_agent_pipeline():
     topic = get_target_topic()
     print(f"[*] Selected Target Topic: {topic}")
     
-    # Step 2: Product Generation
+    # Step 2: Product Generation (with model auto-failover)
     asset_data = generate_digital_asset_with_groq(topic)
     
     asset_type = asset_data.get("asset_type", "GENERIC")
