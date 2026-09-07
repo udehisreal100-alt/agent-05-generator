@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import zipfile
 import requests
 from groq import Groq
@@ -27,14 +28,14 @@ def get_target_topic() -> str:
     return "FastAPI middleware for rate-limiting and Supabase authentication logging"
 
 # ---------------------------------------------------------------------------
-# 3. Groq Generation Module (llama-3.3-70b-versatile)
+# 3. Groq Generation Module (qwen/qwen3.8-27b)
 # ---------------------------------------------------------------------------
 SYSTEM_INSTRUCTION = """
 You are an expert software engineer and digital product creator.
 Generate a complete, fully functional, production-ready Python script for the user topic.
 Ensure robust error handling, inline comments, clean structure, and a comprehensive README.md.
 
-You MUST return your response as a valid JSON object matching this exact schema:
+You MUST return your response as a single, valid JSON object matching this exact schema:
 {
   "filename": "script_name.py",
   "code": "FULL_PYTHON_CODE_HERE",
@@ -43,27 +44,41 @@ You MUST return your response as a valid JSON object matching this exact schema:
   "product_description": "ATTRACTIVE_GUMROAD_SALES_COPY_MARKDOWN",
   "price_usd": 9
 }
-Do NOT wrap the output in markdown code fences like ```json. Return pure JSON.
+
+CRITICAL JSON ESCAPING RULES:
+1. Output strictly valid JSON.
+2. Escape all internal double quotes inside string values as \\\".
+3. Represent line breaks in code and docs with \\n.
 """
 
 def generate_digital_asset_with_groq(topic: str) -> dict:
-    """Queries Groq API using Llama 3.3 70B to generate code, docs, and sales copy."""
+    """Queries Groq API using qwen/qwen3.8-27b and parses the JSON asset cleanly."""
     if not groq_client:
         raise ValueError("Groq client not initialized. Check GROQ_API_KEY.")
         
     print(f"[*] Querying Groq API for topic: '{topic}'...")
+    
     response = groq_client.chat.completions.create(
         model="qwen/qwen3.8-27b",
-        response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": SYSTEM_INSTRUCTION},
             {"role": "user", "content": f"Generate a complete digital asset for topic: {topic}"}
         ],
-        temperature=0.2
+        temperature=0.1
     )
     
-    raw_content = response.choices[0].message.content
-    return json.loads(raw_content)
+    raw_content = response.choices[0].message.content.strip()
+    
+    # Strip markdown code block wrappers if present (e.g. ```json ... ```)
+    clean_json = re.sub(r"^```(?:json)?\s*", "", raw_content, flags=re.MULTILINE)
+    clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE).strip()
+    
+    try:
+        return json.loads(clean_json)
+    except json.JSONDecodeError as e:
+        print(f"[!] JSON decoding error: {e}")
+        print(f"Raw Output Snippet:\n{raw_content[:300]}...")
+        raise e
 
 # ---------------------------------------------------------------------------
 # 4. Local ZIP Packaging Module
@@ -84,7 +99,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         print("[✘] Skipping Gumroad publishing: GUMROAD_ACCESS_TOKEN not set.")
         return None
 
-    url = "[https://api.gumroad.com/v2/products](https://api.gumroad.com/v2/products)"
+    url = "https://api.gumroad.com/v2/products"
     payload = {
         "access_token": GUMROAD_ACCESS_TOKEN,
         "name": title,
