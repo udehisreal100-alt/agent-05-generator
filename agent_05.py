@@ -53,7 +53,7 @@ def generate_digital_asset_with_groq(topic: str) -> dict:
         
     print(f"[*] Querying Groq API for topic: '{topic}'...")
     response = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="qwen/qwen3.8-27b",
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": SYSTEM_INSTRUCTION},
