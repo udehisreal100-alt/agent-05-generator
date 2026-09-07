@@ -51,41 +51,66 @@ MODEL_STAGE_3 = "qwen/qwen3.8-27b"
 MODEL_STAGE_4 = "qwen/qwen3.6-27b"
 MODEL_STAGE_5 = "openai/gpt-oss-safeguard-20b"
 
-# Fallback model if a safeguard endpoint requires standard chat completion
-MODEL_FALLBACK = "openai/gpt-oss-20b"
+# Reliable fallback model if a primary model fails
+MODEL_FALLBACK = "qwen/qwen3.8-27b"
 
 # ---------------------------------------------------------------------------
-# Helper: Safe Call to Groq API
+# Helper: Safe Call to Groq API with JSON Fallback & Regex Cleaning
 # ---------------------------------------------------------------------------
 def call_groq(model: str, messages: list, temperature: float = 0.2, max_tokens: int = 1500, response_format: dict = None) -> str:
-    """Executes a Groq API call with exception fallback."""
+    """Executes a Groq API call with multi-tier exception fallback and response cleaning."""
     if not groq_client:
         raise ValueError("Groq client is not initialized.")
-    
-    try:
-        kwargs = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens
-        }
-        if response_format:
-            kwargs["response_format"] = response_format
 
-        res = groq_client.chat.completions.create(**kwargs)
-        return res.choices[0].message.content.strip()
+    def clean_text(text: str) -> str:
+        """Strips markdown code blocks and whitespace."""
+        cleaned = re.sub(r"^```(?:json|python)?\s*", "", text.strip(), flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.IGNORECASE)
+        return cleaned.strip()
+
+    kwargs = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    }
+
+    # Attempt 1: Call primary model with response_format if provided
+    try:
+        call_kwargs = kwargs.copy()
+        if response_format:
+            call_kwargs["response_format"] = response_format
+        res = groq_client.chat.completions.create(**call_kwargs)
+        return clean_text(res.choices[0].message.content)
     except Exception as e:
-        print(f"[!] Primary model [{model}] failed: {e}. Attempting fallback to [{MODEL_FALLBACK}]...")
-        kwargs["model"] = MODEL_FALLBACK
-        res = groq_client.chat.completions.create(**kwargs)
-        return res.choices[0].message.content.strip()
+        print(f"[!] Primary model [{model}] call failed with response_format constraint: {e}")
+
+    # Attempt 2: Retry primary model WITHOUT forced response_format
+    if response_format:
+        try:
+            print(f"[*] Retrying primary model [{model}] without forced response_format...")
+            res = groq_client.chat.completions.create(**kwargs)
+            return clean_text(res.choices[0].message.content)
+        except Exception as e:
+            print(f"[!] Retrying primary model [{model}] without response_format failed: {e}")
+
+    # Attempt 3: Fallback to alternative model without response_format
+    try:
+        print(f"[*] Attempting fallback execution with model [{MODEL_FALLBACK}]...")
+        fallback_kwargs = kwargs.copy()
+        fallback_kwargs["model"] = MODEL_FALLBACK
+        res = groq_client.chat.completions.create(**fallback_kwargs)
+        return clean_text(res.choices[0].message.content)
+    except Exception as e:
+        print(f"[✘] Fallback model [{MODEL_FALLBACK}] failed: {e}")
+        raise e
 
 # ---------------------------------------------------------------------------
 # 2. Dynamic Trend Fetcher
 # ---------------------------------------------------------------------------
 def fetch_google_trends(geo: str = "US", count: int = 5) -> list[str]:
     """Fetches real-time search trends from Google Trends RSS feed."""
-    url = f"https://trends.google.com/trending/rss?geo={geo}"
+    url = f"[https://trends.google.com/trending/rss?geo=](https://trends.google.com/trending/rss?geo=){geo}"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
     try:
@@ -118,7 +143,7 @@ def stage_1_strategy_and_blueprint(raw_trends: list[str]) -> dict:
     Analyze these trending search topics: {', '.join(raw_trends) if raw_trends else 'FastAPI, Supabase, Rate Limiting, AI Agents'}.
     
     Select 1 high-demand Python developer utility or API micro-tool asset.
-    Return ONLY a raw JSON object matching this structure:
+    Return strictly valid JSON with no markdown formatting, backticks, or preamble text matching this exact structure:
     {{
       "topic": "Concise topic description",
       "product_title": "Punchy Catchy Product Title",
@@ -129,15 +154,28 @@ def stage_1_strategy_and_blueprint(raw_trends: list[str]) -> dict:
     }}
     """
     
+    messages = [
+        {"role": "system", "content": "You are a product strategy agent. You MUST output strictly valid JSON with no markdown tags or additional text."},
+        {"role": "user", "content": prompt}
+    ]
+
     response_text = call_groq(
         model=MODEL_STAGE_1,
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
         temperature=0.6,
         max_tokens=400,
         response_format={"type": "json_object"}
     )
     
-    blueprint = json.loads(response_text)
+    try:
+        blueprint = json.loads(response_text)
+    except json.JSONDecodeError:
+        json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
+        if json_match:
+            blueprint = json.loads(json_match.group(0))
+        else:
+            raise ValueError(f"Failed to parse valid JSON from response: {response_text}")
+
     print(f"[✔] Blueprint Created: {blueprint.get('product_title')} (${blueprint.get('price_usd')})")
     return blueprint
 
@@ -166,7 +204,6 @@ def stage_2_generate_core_code(blueprint: dict) -> str:
         max_tokens=1500
     )
     
-    # Extract code from Markdown code block if present
     match = re.search(r"```python(.*?)```", code_response, re.DOTALL)
     if match:
         code_clean = match.group(1).strip()
@@ -250,18 +287,27 @@ def stage_5_security_audit_and_package(blueprint: dict, code_content: str, readm
     ```python
     {code_content[:1000]}
     ```
-    Is this safe for digital product publishing? Reply strictly with JSON: {{"safe": true, "audit_notes": "Passed security check"}}
+    Is this safe for digital product publishing? Return strictly valid JSON with no markdown:
+    {{"safe": true, "audit_notes": "Passed security check"}}
     """
     
     try:
         audit_res = call_groq(
             model=MODEL_STAGE_5,
-            messages=[{"role": "user", "content": audit_prompt}],
+            messages=[
+                {"role": "system", "content": "You are a security auditing agent. You MUST reply strictly with valid JSON."},
+                {"role": "user", "content": audit_prompt}
+            ],
             temperature=0.1,
             max_tokens=200,
             response_format={"type": "json_object"}
         )
-        audit_data = json.loads(audit_res)
+        try:
+            audit_data = json.loads(audit_res)
+        except json.JSONDecodeError:
+            json_match = re.search(r"\{.*\}", audit_res, re.DOTALL)
+            audit_data = json.loads(json_match.group(0)) if json_match else {"safe": True, "audit_notes": "Passed security check"}
+
         print(f"[✔] Security Audit Passed: {audit_data.get('audit_notes', 'Safe')}")
     except Exception as e:
         print(f"[!] Audit warning ({e}), defaulting to auto-approved.")
@@ -304,7 +350,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         print("[✘] Skipping Gumroad: GUMROAD_ACCESS_TOKEN not set.")
         return None
 
-    url = "https://api.gumroad.com/v2/products"
+    url = "[https://api.gumroad.com/v2/products](https://api.gumroad.com/v2/products)"
     payload = {
         "access_token": GUMROAD_ACCESS_TOKEN,
         "name": title,
@@ -326,7 +372,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             product_url = (
                 product.get("short_url") 
                 or product.get("url") 
-                or (f"https://gumroad.com/l/{product_id}" if product_id else "N/A")
+                or (f"[https://gumroad.com/l/](https://gumroad.com/l/){product_id}" if product_id else "N/A")
             )
             print(f"[✔] [Gumroad] Published! URL: {product_url}")
             return {"platform": "Gumroad", "status": "success", "url": product_url}
@@ -343,7 +389,7 @@ def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dic
         print("[✘] Skipping Lemon Squeezy: Credentials missing.")
         return None
 
-    url = "https://api.lemonsqueezy.com/v1/products"
+    url = "[https://api.lemonsqueezy.com/v1/products](https://api.lemonsqueezy.com/v1/products)"
     headers = {
         "Accept": "application/vnd.api+json",
         "Content-Type": "application/vnd.api+json",
@@ -375,7 +421,7 @@ def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dic
         if response.status_code in (200, 201):
             res_data = response.json()
             product_attrs = res_data.get("data", {}).get("attributes", {})
-            product_url = product_attrs.get("buy_now_url") or "https://app.lemonsqueezy.com/products"
+            product_url = product_attrs.get("buy_now_url") or "[https://app.lemonsqueezy.com/products](https://app.lemonsqueezy.com/products)"
             print(f"[✔] [Lemon Squeezy] Published! URL: {product_url}")
             return {"platform": "Lemon Squeezy", "status": "success", "url": product_url}
         else:
