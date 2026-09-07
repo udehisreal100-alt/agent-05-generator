@@ -46,9 +46,10 @@ groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 # Fallback models list prioritized by capability
 GROQ_MODELS_FALLBACK_CHAIN = [
-    "qwen/qwen3.8-27b",
-    "qwen/qwen3.6-27b",
-    "openai/gpt-oss-safeguard-20b"
+    "meta-llama/llama-prompt-guard-2-86m",
+    "meta-llama/llama-prompt-guard-2-22m",
+    "qwen/qwen3.8-27b"
+    "qwen/qwen3.6-27b"
 ]
 
 # ---------------------------------------------------------------------------
