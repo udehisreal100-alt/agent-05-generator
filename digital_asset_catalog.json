@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2026-09-08T15:22:25.805137",
+    "topic": "Automated release date tracking and notification system for major video game titles",
+    "product_title": "GameDrop Radar",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 6304
+      },
+      {
+        "filename": "README.md",
+        "length": 4039
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "success",
+        "url": "N/A"
+      }
+    }
+  }
+]
