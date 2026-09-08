@@ -19,7 +19,11 @@ build/
 dist/
 *.egg-info/
 
-
+# ==========================================
+# Engine Temporary Artifacts
+# ==========================================
+*.zip
+payload_*.zip
 
 # ==========================================
 # IDE & Operating System
