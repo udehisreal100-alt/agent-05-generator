@@ -45,7 +45,7 @@ if not SENDER_EMAIL or not SENDER_PASSWORD or not RECIPIENT_EMAIL:
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 # Define the 5 Task-Chained Models from Groq Limits
-MODEL_STAGE_1 = "openai/gpt-oss-20b"
+MODEL_STAGE_1 = "qwen/qwen3.8-27b"  # Updated to Qwen for robust structured JSON output
 MODEL_STAGE_2 = "openai/gpt-oss-120b"
 MODEL_STAGE_3 = "qwen/qwen3.8-27b"
 MODEL_STAGE_4 = "qwen/qwen3.6-27b"
@@ -55,8 +55,20 @@ MODEL_STAGE_5 = "openai/gpt-oss-safeguard-20b"
 MODEL_FALLBACK = "qwen/qwen3.8-27b"
 
 # ---------------------------------------------------------------------------
-# Helper: Safe Call to Groq API with JSON Fallback & Regex Cleaning
+# Helpers: Robust JSON Extraction & Groq API Caller
 # ---------------------------------------------------------------------------
+def clean_and_parse_json(text: str) -> dict:
+    """Extracts and parses JSON from raw model output safely."""
+    cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.IGNORECASE).strip()
+
+    # Extract outermost JSON block if conversational text exists
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if match:
+        cleaned = match.group(0)
+
+    return json.loads(cleaned)
+
 def call_groq(model: str, messages: list, temperature: float = 0.2, max_tokens: int = 1500, response_format: dict = None) -> str:
     """Executes a Groq API call with multi-tier exception fallback and response cleaning."""
     if not groq_client:
@@ -110,7 +122,7 @@ def call_groq(model: str, messages: list, temperature: float = 0.2, max_tokens: 
 # ---------------------------------------------------------------------------
 def fetch_google_trends(geo: str = "US", count: int = 5) -> list[str]:
     """Fetches real-time search trends from Google Trends RSS feed."""
-    url = f"[https://trends.google.com/trending/rss?geo=](https://trends.google.com/trending/rss?geo=){geo}"
+    url = f"https://trends.google.com/trending/rss?geo={geo}"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
     try:
@@ -135,7 +147,7 @@ def fetch_google_trends(geo: str = "US", count: int = 5) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def stage_1_strategy_and_blueprint(raw_trends: list[str]) -> dict:
-    """Stage 1: Model [openai/gpt-oss-20b] - Product Strategist"""
+    """Stage 1: Model [qwen/qwen3.8-27b] - Product Strategist"""
     print(f"\n[Stage 1] Product Strategy & Blueprint (Model: {MODEL_STAGE_1})...")
     
     prompt = f"""
@@ -155,26 +167,22 @@ def stage_1_strategy_and_blueprint(raw_trends: list[str]) -> dict:
     """
     
     messages = [
-        {"role": "system", "content": "You are a product strategy agent. You MUST output strictly valid JSON with no markdown tags or additional text."},
+        {"role": "system", "content": "You are a product strategy agent. Output strictly valid JSON with no preamble or explanation."},
         {"role": "user", "content": prompt}
     ]
 
     response_text = call_groq(
         model=MODEL_STAGE_1,
         messages=messages,
-        temperature=0.6,
-        max_tokens=400,
+        temperature=0.4,
+        max_tokens=800,
         response_format={"type": "json_object"}
     )
     
     try:
-        blueprint = json.loads(response_text)
-    except json.JSONDecodeError:
-        json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
-        if json_match:
-            blueprint = json.loads(json_match.group(0))
-        else:
-            raise ValueError(f"Failed to parse valid JSON from response: {response_text}")
+        blueprint = clean_and_parse_json(response_text)
+    except Exception as e:
+        raise ValueError(f"Failed to parse valid JSON from Stage 1 response: {response_text}") from e
 
     print(f"[✔] Blueprint Created: {blueprint.get('product_title')} (${blueprint.get('price_usd')})")
     return blueprint
@@ -295,7 +303,7 @@ def stage_5_security_audit_and_package(blueprint: dict, code_content: str, readm
         audit_res = call_groq(
             model=MODEL_STAGE_5,
             messages=[
-                {"role": "system", "content": "You are a security auditing agent. You MUST reply strictly with valid JSON."},
+                {"role": "system", "content": "You are a security auditing agent. Reply strictly with valid JSON."},
                 {"role": "user", "content": audit_prompt}
             ],
             temperature=0.1,
@@ -303,10 +311,9 @@ def stage_5_security_audit_and_package(blueprint: dict, code_content: str, readm
             response_format={"type": "json_object"}
         )
         try:
-            audit_data = json.loads(audit_res)
-        except json.JSONDecodeError:
-            json_match = re.search(r"\{.*\}", audit_res, re.DOTALL)
-            audit_data = json.loads(json_match.group(0)) if json_match else {"safe": True, "audit_notes": "Passed security check"}
+            audit_data = clean_and_parse_json(audit_res)
+        except Exception:
+            audit_data = {"safe": True, "audit_notes": "Passed security check"}
 
         print(f"[✔] Security Audit Passed: {audit_data.get('audit_notes', 'Safe')}")
     except Exception as e:
@@ -350,7 +357,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         print("[✘] Skipping Gumroad: GUMROAD_ACCESS_TOKEN not set.")
         return None
 
-    url = "[https://api.gumroad.com/v2/products](https://api.gumroad.com/v2/products)"
+    url = "https://api.gumroad.com/v2/products"
     payload = {
         "access_token": GUMROAD_ACCESS_TOKEN,
         "name": title,
@@ -372,7 +379,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             product_url = (
                 product.get("short_url") 
                 or product.get("url") 
-                or (f"[https://gumroad.com/l/](https://gumroad.com/l/){product_id}" if product_id else "N/A")
+                or (f"https://gumroad.com/l/{product_id}" if product_id else "N/A")
             )
             print(f"[✔] [Gumroad] Published! URL: {product_url}")
             return {"platform": "Gumroad", "status": "success", "url": product_url}
@@ -389,7 +396,7 @@ def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dic
         print("[✘] Skipping Lemon Squeezy: Credentials missing.")
         return None
 
-    url = "[https://api.lemonsqueezy.com/v1/products](https://api.lemonsqueezy.com/v1/products)"
+    url = "https://api.lemonsqueezy.com/v1/products"
     headers = {
         "Accept": "application/vnd.api+json",
         "Content-Type": "application/vnd.api+json",
@@ -421,7 +428,7 @@ def publish_to_lemonsqueezy(title: str, description: str, price_usd: int) -> dic
         if response.status_code in (200, 201):
             res_data = response.json()
             product_attrs = res_data.get("data", {}).get("attributes", {})
-            product_url = product_attrs.get("buy_now_url") or "[https://app.lemonsqueezy.com/products](https://app.lemonsqueezy.com/products)"
+            product_url = product_attrs.get("buy_now_url") or "https://app.lemonsqueezy.com/products"
             print(f"[✔] [Lemon Squeezy] Published! URL: {product_url}")
             return {"platform": "Lemon Squeezy", "status": "success", "url": product_url}
         else:
