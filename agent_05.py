@@ -364,7 +364,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             headers=headers,
             data={
                 "filename": file_name,
-                "file_size": str(file_size),  # FIX 1: Explicit string conversion
+                "file_size": str(file_size),
                 "content_type": "application/zip",
             },
             timeout=30
@@ -372,29 +372,35 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
 
         if presign_res.status_code in (200, 201) and presign_res.json().get("success"):
             p_data = presign_res.json()
-            upload_url = p_data.get("upload_url")
+            # Fix: Gumroad returns 'url', fall back to 'upload_url'
+            upload_url = p_data.get("url") or p_data.get("upload_url")
             file_id = p_data.get("file_id")
 
-            # Step 2: Upload file bytes directly to S3
-            with open(zip_file_path, "rb") as f:
-                s3_res = requests.put(
-                    upload_url,
-                    data=f,
-                    headers={"Content-Type": "application/zip"},
-                    timeout=60
-                )
-            s3_res.raise_for_status()
+            if upload_url:
+                # Step 2: Upload file bytes directly to S3
+                with open(zip_file_path, "rb") as f:
+                    s3_res = requests.put(
+                        upload_url,
+                        data=f,
+                        headers={"Content-Type": "application/zip"},
+                        timeout=60
+                    )
+                s3_res.raise_for_status()
 
-            # Step 3: Complete file upload registration
-            complete_res = requests.post(
-                "https://api.gumroad.com/v2/files/complete",
-                headers=headers,
-                data={"file_id": str(file_id)},
-                timeout=30
-            )
-            
-            if complete_res.status_code in (200, 201) and complete_res.json().get("success"):
-                file_url = complete_res.json().get("file", {}).get("url")
+                # Step 3: Complete file upload registration
+                if file_id:
+                    complete_res = requests.post(
+                        "https://api.gumroad.com/v2/files/complete",
+                        headers=headers,
+                        data={"file_id": str(file_id)},
+                        timeout=30
+                    )
+                    
+                    if complete_res.status_code in (200, 201) and complete_res.json().get("success"):
+                        c_data = complete_res.json()
+                        file_url = c_data.get("file", {}).get("url") or c_data.get("url")
+            else:
+                print(f"[!] Presign succeeded but no valid upload URL in response: {p_data}")
         else:
             print(f"[!] Gumroad file presign skipped/failed: {presign_res.text}")
 
@@ -402,7 +408,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         price_in_cents = int(price_usd * 100)
         payload = {
             "name": title,
-            "price_cents": str(price_in_cents),  # FIX 2: Explicit string cents payload
+            "price_cents": str(price_in_cents),
             "description": description,
             "customizable_price": "false",
         }
