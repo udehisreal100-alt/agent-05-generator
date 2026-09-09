@@ -32,4 +32,4 @@ payload_*.zip
 .idea/
 .DS_Store
 Thumbs.db
-*.log
+*.logdigital_asset_catalog.json 
