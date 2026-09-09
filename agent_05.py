@@ -352,7 +352,7 @@ def create_asset_zip(files: list[dict], zip_output_path: str):
     print(f"[✔] ZIP Archive created: {zip_output_path}")
 
 def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_path: str) -> dict | None:
-    """Publishes product to Gumroad REST API."""
+    """Publishes product to Gumroad REST API with explicit payload verification."""
     if not GUMROAD_ACCESS_TOKEN:
         print("[✘] Skipping Gumroad: GUMROAD_ACCESS_TOKEN not set.")
         return None
@@ -374,15 +374,27 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             
         if response.status_code in (200, 201):
             res_data = response.json()
+            
+            # Check Gumroad's internal success flag
+            if not res_data.get("success", False):
+                error_msg = res_data.get("message", "Gumroad API returned success: false")
+                print(f"[✘] [Gumroad] API Error: {error_msg}")
+                return {"platform": "Gumroad", "status": "failed", "error": error_msg}
+
             product = res_data.get("product", {})
             product_id = product.get("id")
             product_url = (
                 product.get("short_url") 
                 or product.get("url") 
-                or (f"https://gumroad.com/l/{product_id}" if product_id else "N/A")
+                or (f"https://gumroad.com/l/{product_id}" if product_id else None)
             )
-            print(f"[✔] [Gumroad] Published! URL: {product_url}")
-            return {"platform": "Gumroad", "status": "success", "url": product_url}
+
+            if product_url:
+                print(f"[✔] [Gumroad] Published! URL: {product_url}")
+                return {"platform": "Gumroad", "status": "success", "url": product_url}
+            else:
+                print(f"[✘] [Gumroad] Product created but no URL/ID returned.")
+                return {"platform": "Gumroad", "status": "failed", "error": "No product URL returned"}
         else:
             print(f"[✘] [Gumroad] Error ({response.status_code}): {response.text}")
             return {"platform": "Gumroad", "status": "failed", "error": response.text}
