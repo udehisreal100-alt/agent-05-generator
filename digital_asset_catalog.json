@@ -94,5 +94,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-09T17:56:39.866272",
+    "topic": "Automated iOS release date and feature tracker API",
+    "product_title": "iOSPulse: Real-Time Release Date Monitor",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 4976
+      },
+      {
+        "filename": "README.md",
+        "length": 3880
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
