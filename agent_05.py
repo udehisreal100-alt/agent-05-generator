@@ -45,7 +45,7 @@ if not SENDER_EMAIL or not SENDER_PASSWORD or not RECIPIENT_EMAIL:
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 # Define the 5 Task-Chained Models from Groq Limits
-MODEL_STAGE_1 = "qwen/qwen3.8-27b"  # Updated to Qwen for robust structured JSON output
+MODEL_STAGE_1 = "qwen/qwen3.8-27b"
 MODEL_STAGE_2 = "openai/gpt-oss-120b"
 MODEL_STAGE_3 = "qwen/qwen3.8-27b"
 MODEL_STAGE_4 = "qwen/qwen3.6-27b"
@@ -62,7 +62,6 @@ def clean_and_parse_json(text: str) -> dict:
     cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.IGNORECASE).strip()
 
-    # Extract outermost JSON block if conversational text exists
     match = re.search(r"\{.*\}", cleaned, re.DOTALL)
     if match:
         cleaned = match.group(0)
@@ -75,7 +74,6 @@ def call_groq(model: str, messages: list, temperature: float = 0.2, max_tokens: 
         raise ValueError("Groq client is not initialized.")
 
     def clean_text(text: str) -> str:
-        """Strips markdown code blocks and whitespace."""
         cleaned = re.sub(r"^```(?:json|python)?\s*", "", text.strip(), flags=re.IGNORECASE)
         cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.IGNORECASE)
         return cleaned.strip()
@@ -87,7 +85,6 @@ def call_groq(model: str, messages: list, temperature: float = 0.2, max_tokens: 
         "max_tokens": max_tokens
     }
 
-    # Attempt 1: Call primary model with response_format if provided
     try:
         call_kwargs = kwargs.copy()
         if response_format:
@@ -97,7 +94,6 @@ def call_groq(model: str, messages: list, temperature: float = 0.2, max_tokens: 
     except Exception as e:
         print(f"[!] Primary model [{model}] call failed with response_format constraint: {e}")
 
-    # Attempt 2: Retry primary model WITHOUT forced response_format
     if response_format:
         try:
             print(f"[*] Retrying primary model [{model}] without forced response_format...")
@@ -106,7 +102,6 @@ def call_groq(model: str, messages: list, temperature: float = 0.2, max_tokens: 
         except Exception as e:
             print(f"[!] Retrying primary model [{model}] without response_format failed: {e}")
 
-    # Attempt 3: Fallback to alternative model without response_format
     try:
         print(f"[*] Attempting fallback execution with model [{MODEL_FALLBACK}]...")
         fallback_kwargs = kwargs.copy()
@@ -300,7 +295,6 @@ def stage_5_security_audit_and_package(blueprint: dict, code_content: str, readm
     """
     
     try:
-        # Avoid passing forced response_format to safeguard model to prevent constraint 400 errors
         audit_res = call_groq(
             model=MODEL_STAGE_5,
             messages=[
@@ -319,7 +313,6 @@ def stage_5_security_audit_and_package(blueprint: dict, code_content: str, readm
     except Exception as e:
         print(f"[!] Audit warning ({e}), defaulting to auto-approved.")
 
-    # Compile final complete manifest
     package = {
         "asset_type": blueprint.get("asset_type", "SOFTWARE_TOOL"),
         "product_title": blueprint.get("product_title"),
@@ -371,7 +364,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             headers=headers,
             data={
                 "filename": file_name,
-                "file_size": file_size,  # Fixed: changed from "size" to "file_size"
+                "file_size": str(file_size),  # FIX 1: Explicit string conversion
                 "content_type": "application/zip",
             },
             timeout=30
@@ -396,7 +389,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             complete_res = requests.post(
                 "https://api.gumroad.com/v2/files/complete",
                 headers=headers,
-                data={"file_id": file_id},
+                data={"file_id": str(file_id)},
                 timeout=30
             )
             
@@ -409,8 +402,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         price_in_cents = int(price_usd * 100)
         payload = {
             "name": title,
-            "price_cents": price_in_cents,
-            "price": price_in_cents,  # Fixed: included both "price" and "price_cents"
+            "price_cents": str(price_in_cents),  # FIX 2: Explicit string cents payload
             "description": description,
             "customizable_price": "false",
         }
@@ -591,12 +583,10 @@ def run_agent_pipeline():
     print("      AGENT #05: 5-STAGE TASK-CHAINING PIPELINE")
     print("==================================================")
     
-    # Fetch real-time context
     raw_trends = fetch_google_trends(geo="US", count=5)
     if raw_trends:
         print(f"[✔] Discovered Live Search Trends: {', '.join(raw_trends)}")
 
-    # Execute 5-Stage Task Chaining Pipeline
     blueprint = stage_1_strategy_and_blueprint(raw_trends)
     code_content = stage_2_generate_core_code(blueprint)
     readme_content = stage_3_generate_readme(blueprint, code_content)
@@ -608,11 +598,9 @@ def run_agent_pipeline():
     price = package.get("price_usd", 19)
     files = package.get("files", [])
     
-    # Packaging
     zip_path = f"payload_{os.urandom(3).hex()}.zip"
     create_asset_zip(files, zip_path)
     
-    # Storefront Publishing
     publish_results = {}
     try:
         gumroad_res = publish_to_gumroad(title, description, price, zip_path)
@@ -627,7 +615,6 @@ def run_agent_pipeline():
             os.remove(zip_path)
             print("[*] Temporary ZIP file cleaned up.")
 
-    # Record catalog entry
     catalog_entry = {
         "timestamp": datetime.now().isoformat(),
         "topic": package.get("topic"),
