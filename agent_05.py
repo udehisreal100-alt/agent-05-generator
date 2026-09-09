@@ -295,20 +295,20 @@ def stage_5_security_audit_and_package(blueprint: dict, code_content: str, readm
     ```python
     {code_content[:1000]}
     ```
-    Is this safe for digital product publishing? Return strictly valid JSON with no markdown:
+    Is this safe for digital product publishing? Return strictly valid JSON with no markdown formatting:
     {{"safe": true, "audit_notes": "Passed security check"}}
     """
     
     try:
+        # Avoid passing forced response_format to safeguard model to prevent constraint 400 errors
         audit_res = call_groq(
             model=MODEL_STAGE_5,
             messages=[
-                {"role": "system", "content": "You are a security auditing agent. Reply strictly with valid JSON."},
+                {"role": "system", "content": "You are a security auditing agent. Output strictly valid raw JSON with no preamble or markdown fences."},
                 {"role": "user", "content": audit_prompt}
             ],
             temperature=0.1,
-            max_tokens=200,
-            response_format={"type": "json_object"}
+            max_tokens=200
         )
         try:
             audit_data = clean_and_parse_json(audit_res)
@@ -352,30 +352,79 @@ def create_asset_zip(files: list[dict], zip_output_path: str):
     print(f"[✔] ZIP Archive created: {zip_output_path}")
 
 def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_path: str) -> dict | None:
-    """Publishes product to Gumroad REST API with explicit payload verification."""
+    """Publishes product to Gumroad REST API using S3 presigned file upload flow."""
     if not GUMROAD_ACCESS_TOKEN:
         print("[✘] Skipping Gumroad: GUMROAD_ACCESS_TOKEN not set.")
         return None
 
-    url = "https://api.gumroad.com/v2/products"
-    payload = {
-        "access_token": GUMROAD_ACCESS_TOKEN,
-        "name": title,
-        "price": price_usd * 100,  # USD to cents
-        "description": description,
-        "customizable_price": "false",
-    }
-    
+    headers = {"Authorization": f"Bearer {GUMROAD_ACCESS_TOKEN}"}
+    file_url = None
+
     print(f"[*] Publishing '{title}' (${price_usd}) to Gumroad...")
     try:
-        with open(zip_file_path, "rb") as f:
-            files = {"file": (os.path.basename(zip_file_path), f, "application/zip")}
-            response = requests.post(url, data=payload, files=files, timeout=30)
+        # Step 1: Request S3 Presigned Upload URL
+        file_size = os.path.getsize(zip_file_path)
+        file_name = os.path.basename(zip_file_path)
+        
+        presign_res = requests.post(
+            "https://api.gumroad.com/v2/files/presign",
+            headers=headers,
+            data={
+                "filename": file_name,
+                "size": file_size,
+                "content_type": "application/zip",
+            },
+            timeout=30
+        )
+
+        if presign_res.status_code in (200, 201) and presign_res.json().get("success"):
+            p_data = presign_res.json()
+            upload_url = p_data.get("upload_url")
+            file_id = p_data.get("file_id")
+
+            # Step 2: Upload file bytes directly to S3
+            with open(zip_file_path, "rb") as f:
+                s3_res = requests.put(
+                    upload_url,
+                    data=f,
+                    headers={"Content-Type": "application/zip"},
+                    timeout=60
+                )
+            s3_res.raise_for_status()
+
+            # Step 3: Complete file upload registration
+            complete_res = requests.post(
+                "https://api.gumroad.com/v2/files/complete",
+                headers=headers,
+                data={"file_id": file_id},
+                timeout=30
+            )
+            
+            if complete_res.status_code in (200, 201) and complete_res.json().get("success"):
+                file_url = complete_res.json().get("file", {}).get("url")
+        else:
+            print(f"[!] Gumroad file presign skipped/failed: {presign_res.text}")
+
+        # Step 4: Create Product on Gumroad
+        payload = {
+            "name": title,
+            "price_cents": price_usd * 100,  # USD to cents
+            "description": description,
+            "customizable_price": "false",
+        }
+        if file_url:
+            payload["files[][url]"] = file_url
+
+        response = requests.post(
+            "https://api.gumroad.com/v2/products",
+            headers=headers,
+            data=payload,
+            timeout=30
+        )
             
         if response.status_code in (200, 201):
             res_data = response.json()
             
-            # Check Gumroad's internal success flag
             if not res_data.get("success", False):
                 error_msg = res_data.get("message", "Gumroad API returned success: false")
                 print(f"[✘] [Gumroad] API Error: {error_msg}")
