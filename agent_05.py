@@ -345,7 +345,7 @@ def create_asset_zip(files: list[dict], zip_output_path: str):
     print(f"[✔] ZIP Archive created: {zip_output_path}")
 
 def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_path: str) -> dict | None:
-    """Publishes product to Gumroad REST API using S3 presigned file upload flow."""
+    """Publishes product to Gumroad REST API using JSON payloads for strict price type validation."""
     if not GUMROAD_ACCESS_TOKEN:
         print("[✘] Skipping Gumroad: GUMROAD_ACCESS_TOKEN not set.")
         return None
@@ -373,7 +373,6 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         if presign_res.status_code in (200, 201) and presign_res.json().get("success"):
             p_data = presign_res.json()
             
-            # Extract S3 presigned upload URL from parts or top-level keys
             upload_url = None
             parts = p_data.get("parts")
             if isinstance(parts, list) and len(parts) > 0:
@@ -381,17 +380,12 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             if not upload_url:
                 upload_url = p_data.get("url") or p_data.get("upload_url")
 
-            file_id = p_data.get("file_id") or p_data.get("upload_id")
             file_url = p_data.get("file_url") or p_data.get("url")
 
             if upload_url:
-                # Step 2: Upload file bytes directly to S3 (no custom headers to prevent SignatureDoesNotMatch)
+                # Step 2: Upload file bytes directly to S3
                 with open(zip_file_path, "rb") as f:
-                    s3_res = requests.put(
-                        upload_url,
-                        data=f,
-                        timeout=60
-                    )
+                    s3_res = requests.put(upload_url, data=f, timeout=60)
                 s3_res.raise_for_status()
 
                 # Step 3: Complete file upload registration
@@ -421,23 +415,40 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
         else:
             print(f"[!] Gumroad file presign skipped/failed: {presign_res.text}")
 
-        # Step 4: Create Product on Gumroad
+        # Step 4: Create Product on Gumroad using JSON payload (price_cents as native integer)
         price_in_cents = int(price_usd * 100)
-        payload = {
+        json_payload = {
             "name": title,
-            "price_cents": str(price_in_cents),
-            "description": description,
+            "price_cents": price_in_cents,  # Native JSON integer required by Gumroad backend validator
+            "description": description
         }
         if file_url:
-            payload["files[][url]"] = file_url
+            json_payload["files"] = [{"url": file_url}]
 
         response = requests.post(
             "https://api.gumroad.com/v2/products",
-            headers=headers,
-            data=payload,
+            headers={"Authorization": f"Bearer {GUMROAD_ACCESS_TOKEN}"},
+            json=json_payload,
             timeout=30
         )
-            
+
+        # Fallback to form-encoded data if JSON endpoint is rejected
+        if response.status_code not in (200, 201) or not response.json().get("success", False):
+            form_payload = {
+                "name": title,
+                "price_cents": str(price_in_cents),
+                "description": description
+            }
+            if file_url:
+                form_payload["files[][url]"] = file_url
+                
+            response = requests.post(
+                "https://api.gumroad.com/v2/products",
+                headers=headers,
+                data=form_payload,
+                timeout=30
+            )
+
         if response.status_code in (200, 201):
             res_data = response.json()
             
