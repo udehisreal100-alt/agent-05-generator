@@ -118,5 +118,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-09T17:58:51.915275",
+    "topic": "Automated Apple Ecosystem News Aggregator",
+    "product_title": "AppleRadar: Real-Time iOS & Hardware News API",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 6359
+      },
+      {
+        "filename": "README.md",
+        "length": 3628
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
