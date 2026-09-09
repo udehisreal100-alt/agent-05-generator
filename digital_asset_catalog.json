@@ -214,5 +214,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-09T20:00:33.205344",
+    "topic": "Real-time sports match data aggregator and odds monitor",
+    "product_title": "PitchStats Pro: Real-Time Match Data & Odds Monitor",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 6277
+      },
+      {
+        "filename": "README.md",
+        "length": 3970
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
