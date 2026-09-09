@@ -190,5 +190,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-09T18:35:15.168891",
+    "topic": "Real-time sports match data aggregation and odds monitoring",
+    "product_title": "SportStream: Live Odds & Match Data API",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5593
+      },
+      {
+        "filename": "README.md",
+        "length": 4230
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
