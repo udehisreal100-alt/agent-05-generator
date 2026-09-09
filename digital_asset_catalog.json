@@ -22,5 +22,29 @@
         "url": "N/A"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-09T06:13:24.986709",
+    "topic": "Automated tennis match stream discovery and link aggregation",
+    "product_title": "TennisStreamFinder Pro",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5715
+      },
+      {
+        "filename": "README.md",
+        "length": 4146
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "success",
+        "url": "N/A"
+      }
+    }
   }
 ]
