@@ -371,7 +371,7 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             headers=headers,
             data={
                 "filename": file_name,
-                "size": file_size,
+                "file_size": file_size,  # Fixed: changed from "size" to "file_size"
                 "content_type": "application/zip",
             },
             timeout=30
@@ -406,9 +406,11 @@ def publish_to_gumroad(title: str, description: str, price_usd: int, zip_file_pa
             print(f"[!] Gumroad file presign skipped/failed: {presign_res.text}")
 
         # Step 4: Create Product on Gumroad
+        price_in_cents = int(price_usd * 100)
         payload = {
             "name": title,
-            "price_cents": price_usd * 100,  # USD to cents
+            "price_cents": price_in_cents,
+            "price": price_in_cents,  # Fixed: included both "price" and "price_cents"
             "description": description,
             "customizable_price": "false",
         }
