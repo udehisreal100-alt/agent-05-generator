@@ -142,5 +142,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-09T18:18:08.280184",
+    "topic": "Automated sports odds and match data aggregation API",
+    "product_title": "KickoffAPI: Real-Time Sports Data Aggregator",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 4893
+      },
+      {
+        "filename": "README.md",
+        "length": 3845
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "error",
+        "error": "Invalid URL 'None': No scheme supplied. Perhaps you meant https://None?"
+      }
+    }
   }
 ]
