@@ -262,5 +262,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-09T20:34:23.673401",
+    "topic": "Real-time NFL team depth chart aggregation and parsing",
+    "product_title": "DepthChartAPI: Instant NFL Roster Intelligence",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 4728
+      },
+      {
+        "filename": "README.md",
+        "length": 3812
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
