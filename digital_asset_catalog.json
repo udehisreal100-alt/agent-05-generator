@@ -166,5 +166,29 @@
         "error": "Invalid URL 'None': No scheme supplied. Perhaps you meant https://None?"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-09T18:24:09.920040",
+    "topic": "Automated iPhone Handoff Status Monitor & Notification Bridge",
+    "product_title": "HandoffSync: Real-Time iPhone Continuity API",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 4595
+      },
+      {
+        "filename": "README.md",
+        "length": 3752
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
