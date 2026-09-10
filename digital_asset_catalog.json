@@ -286,5 +286,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-10T06:14:07.564446",
+    "topic": "Automated media monitoring and sentiment analysis for trending public figures",
+    "product_title": "TrendPulse Monitor",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5448
+      },
+      {
+        "filename": "README.md",
+        "length": 4104
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
