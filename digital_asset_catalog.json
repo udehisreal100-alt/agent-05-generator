@@ -310,5 +310,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-11T06:13:01.105887",
+    "topic": "Real-time service outage monitoring and alerting",
+    "product_title": "DowntimeRadar",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5644
+      },
+      {
+        "filename": "README.md",
+        "length": 3929
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
