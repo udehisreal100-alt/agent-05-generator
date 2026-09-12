@@ -334,5 +334,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-12T06:12:10.384752",
+    "topic": "LCK League of Legends Match Data Aggregator",
+    "product_title": "LCK DataPulse",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 6166
+      },
+      {
+        "filename": "README.md",
+        "length": 4117
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
