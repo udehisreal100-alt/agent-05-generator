@@ -358,5 +358,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-13T06:17:09.243439",
+    "topic": "Celebrity News Aggregator API",
+    "product_title": "StarGazer: Real-Time Celebrity News API",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5746
+      },
+      {
+        "filename": "README.md",
+        "length": 4033
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
