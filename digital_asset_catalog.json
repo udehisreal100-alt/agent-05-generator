@@ -382,5 +382,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-14T06:14:33.624876",
+    "topic": "iOS 27 release date tracking and notification",
+    "product_title": "iOS 27 Radar",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5656
+      },
+      {
+        "filename": "README.md",
+        "length": 4022
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
