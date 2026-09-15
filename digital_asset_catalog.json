@@ -406,5 +406,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-15T06:15:15.035954",
+    "topic": "Automated Data Breach Detection and API Monitoring",
+    "product_title": "BreachGuard: Real-Time Data Leak Sentinel",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5233
+      },
+      {
+        "filename": "README.md",
+        "length": 4031
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
