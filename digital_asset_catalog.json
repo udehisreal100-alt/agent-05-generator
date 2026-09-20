@@ -478,5 +478,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-20T06:13:45.429566",
+    "topic": "MLB Wild Card Standings API",
+    "product_title": "BaseballStandingsAPI",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 2758
+      },
+      {
+        "filename": "README.md",
+        "length": 3906
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
