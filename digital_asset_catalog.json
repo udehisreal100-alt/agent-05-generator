@@ -502,5 +502,29 @@
         "error": "New products should be created with a price"
       }
     }
+  },
+  {
+    "timestamp": "2026-09-21T06:15:40.792373",
+    "topic": "Asteroid Impact Probability & Trajectory API Client",
+    "product_title": "AstroGuard API",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 3279
+      },
+      {
+        "filename": "README.md",
+        "length": 4129
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "New products should be created with a price"
+      }
+    }
   }
 ]
