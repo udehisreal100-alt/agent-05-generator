@@ -838,5 +838,29 @@
         "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
       }
     }
+  },
+  {
+    "timestamp": "2026-10-07T06:13:33.229794",
+    "topic": "Automated sports data aggregation and sentiment analysis for tennis and news events",
+    "product_title": "SportsPulse API",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5196
+      },
+      {
+        "filename": "README.md",
+        "length": 4174
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
+      }
+    }
   }
 ]
