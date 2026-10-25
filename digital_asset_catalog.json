@@ -1246,5 +1246,29 @@
         "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
       }
     }
+  },
+  {
+    "timestamp": "2026-10-25T10:46:00.347038",
+    "topic": "Automated sports betting odds aggregator and value bet calculator",
+    "product_title": "OddsEdge: Python Sports Betting Utility",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5999
+      },
+      {
+        "filename": "README.md",
+        "length": 4000
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
+      }
+    }
   }
 ]
