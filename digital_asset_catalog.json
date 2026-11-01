@@ -1414,5 +1414,29 @@
         "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
       }
     }
+  },
+  {
+    "timestamp": "2026-11-01T12:42:12.703348",
+    "topic": "Real-time sports match data aggregation and odds comparison for live games",
+    "product_title": "SportSync: Live Match & Odds Aggregator",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 6408
+      },
+      {
+        "filename": "README.md",
+        "length": 3999
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
+      }
+    }
   }
 ]
