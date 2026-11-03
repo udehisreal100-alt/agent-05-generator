@@ -1462,5 +1462,29 @@
         "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
       }
     }
+  },
+  {
+    "timestamp": "2026-11-03T13:40:09.946060",
+    "topic": "Automated Ohio Election Results Aggregator & Visualizer",
+    "product_title": "OhioVoteDash: Real-Time Election Data API",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "main_script.py",
+        "length": 5858
+      },
+      {
+        "filename": "README.md",
+        "length": 3841
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
+      }
+    }
   }
 ]
