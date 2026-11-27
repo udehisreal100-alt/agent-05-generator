@@ -1990,5 +1990,29 @@
         "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
       }
     }
+  },
+  {
+    "timestamp": "2026-11-27T16:10:33.864903",
+    "topic": "Automated monitoring and alerting for high-profile celebrity and sports news trends",
+    "product_title": "TrendPulse: Real-Time Celebrity & Sports News Monitor",
+    "asset_type": "SOFTWARE_TOOL",
+    "price_usd": 19,
+    "files_manifest": [
+      {
+        "filename": "trend_pulse.py",
+        "length": 5563
+      },
+      {
+        "filename": "README.md",
+        "length": 4032
+      }
+    ],
+    "storefronts": {
+      "gumroad": {
+        "platform": "Gumroad",
+        "status": "failed",
+        "error": "{\"success\":false,\"message\":\"One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.\"}"
+      }
+    }
   }
 ]
